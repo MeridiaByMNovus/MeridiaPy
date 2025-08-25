@@ -1,0 +1,55 @@
+{
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "~18.17.5",
+    "@types/vscode": "~1.81.0",
+    "@typescript-eslint/eslint-plugin": "~6.4.0",
+    "@typescript-eslint/parser": "~6.4.0",
+    "editorconfig": "~2.0.0",
+    "electron": "^37.3.1",
+    "eslint": "~8.47.0",
+    "eslint-config-standard": "~17.1.0",
+    "eslint-plugin-header": "~3.1.1",
+    "eslint-plugin-import": "~2.28.0",
+    "eslint-plugin-promise": "~6.1.1",
+    "eslint-plugin-unused-imports": "~3.0.0",
+    "path-browserify": "~1.0.1",
+    "rollup-plugin-dts": "^6.2.3",
+    "shx": "~0.3.4",
+    "tslib": "~2.6.1",
+    "typescript": "~5.1.6",
+    "vite": "~4.4.9",
+    "vite-plugin-static-copy": "^3.1.2"
+  },
+  "volta": {
+    "node": "18.17.1",
+    "npm": "9.6.7"
+  },
+  "scripts": {
+    "clean": "npm run clean --workspaces",
+    "compile": "npm run compile --workspaces",
+    "watch:clean": "tsc --build tsconfig.build.json --clean",
+    "watch": "tsc --build tsconfig.build.json --watch --verbose",
+    "build:clean": "shx rm -rf dist",
+    "build:client": "vite build --config vite.config.client.ts",
+    "build:server": "vite build --config vite.config.server.ts",
+    "build:vite": "npm run build:client && npm run build:server",
+    "build:types": "rollup -c rollup.dts.config.mjs",
+    "build": "npm run build:clean && npm run build:vite && npm run build:types",
+    "dev": "vite",
+    "dev:debug": "vite --debug --force",
+    "build:vscode-ws-jsonrpc": "npm run build --workspace packages/vscode-ws-jsonrpc",
+    "build:code": "npm run build --workspace packages/code",
+    "start:python-server": "npm run start:server:python --workspace packages/code",
+    "publish": "cd dist && npm publish --access public"
+  },
+  "workspaces": [
+    "packages/vscode-ws-jsonrpc",
+    "packages/code"
+  ],
+  "dependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.48.0",
+    "monaco-languageclient": "^6.4.4"
+  }
+}
