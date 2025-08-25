@@ -10,7 +10,6 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "type": "module",
   "devDependencies": {
     "vite": "^7.1.3"

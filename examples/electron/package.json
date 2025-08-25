@@ -4,7 +4,7 @@
   "description": "",
   "main": "electron.cjs",
   "scripts": {
-    "start:electron": "concurrently -n ELECTRON,VITE -c red,purple \"electron .\" \"vite\""
+    "start:electron": "concurrently -n VITE,ELECTRON -c red,purple \"vite\" \"electron .\" "
   },
   "keywords": [],
   "author": "",
@@ -13,6 +13,7 @@
     "meridia-py": "^1.1.2"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "electron": "^37.3.1"
   }
 }
