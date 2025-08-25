@@ -1,0 +1,18 @@
+{
+  "name": "electron",
+  "version": "1.0.0",
+  "description": "",
+  "main": "electron.cjs",
+  "scripts": {
+    "start:electron": "concurrently -n ELECTRON,VITE -c red,purple \"electron .\" \"vite\""
+  },
+  "keywords": [],
+  "author": "",
+  "type": "module",
+  "dependencies": {
+    "meridia-py": "^1.1.2"
+  },
+  "devDependencies": {
+    "electron": "^37.3.1"
+  }
+}

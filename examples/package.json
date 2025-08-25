@@ -1,0 +1,23 @@
+{
+  "name": "examples",
+  "description": "",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "start:example:browser": "npm run start:browser --workspace=browser/",
+    "start:example:electron": "npm run start:electron --workspace=electron/",
+    "start:server": "npm run server --workspace=server/"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "vite": "^7.1.3"
+  },
+  "workspaces": [
+    "browser/",
+    "electron/",
+    "server/"
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "name": "meridia-py",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "type": "module",
   "main": "./client.js",
   "module": "./client.js",
@@ -14,7 +14,17 @@
       "default": "./server.js"
     }
   },
-  "readme": "./README.md",
+  "readme": "All-in-one Python Language Server + Monaco Editor bundle",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MeridiaByMNovus/MeridiaPy.git"
+  },
+  "author": {
+    "name": "MNovus",
+    "email": "off.manojkhandelwal@gmail.com",
+    "url": "https://github.com/MeridiaByNovus"
+  },
+  "homepage": "https://github.com/MeridiaByMNovus/MeridiaPy#readme",
   "dependencies": {
     "express": "~4.18.2",
     "monaco-editor-workers": "~0.41.0",
@@ -51,7 +61,6 @@
     "monaco-python",
     "monaco"
   ],
-  "author": "MNovus",
   "license": "MIT",
   "volta": {
     "node": "18.17.1",
