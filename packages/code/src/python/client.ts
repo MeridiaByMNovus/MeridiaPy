@@ -1,25 +1,34 @@
-import "monaco-editor/esm/vs/editor/editor.all.js";
-import "monaco-editor/esm/vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard.js";
-import * as monaco from "monaco-editor/esm/vs/editor/editor.api.js";
-import * as vscode from "vscode";
-import "vscode/default-extensions/theme-defaults";
-import "vscode/default-extensions/python";
-import { updateUserConfiguration } from "vscode/service-override/configuration";
-import { LogLevel } from "vscode/services";
-import { createConfiguredEditor, createModelReference } from "vscode/monaco";
-import { ExtensionHostKind, registerExtension } from "vscode/extensions";
-import { initServices, MonacoLanguageClient } from "monaco-languageclient";
+// Import core Monaco Editor and VSCode compatibility packages for browser/standalone mode.
+import "monaco-editor/esm/vs/editor/editor.all.js"; // Monaco core editor
+import "monaco-editor/esm/vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard.js"; // iPad keyboard support
+import * as monaco from "monaco-editor/esm/vs/editor/editor.api.js"; // Monaco API
+import * as vscode from "vscode"; // VSCode API shim for Monaco/Browser
+
+// Import built-in VSCode extensions for themes and Python language support
+import "vscode/default-extensions/theme-defaults"; // VSCode default themes
+import "vscode/default-extensions/python"; // Python language extension (syntax, completion, etc.)
+
+import { updateUserConfiguration } from "vscode/service-override/configuration"; // Dynamic VSCode settings
+import { LogLevel } from "vscode/services"; // VSCode service log levels
+
+import { createConfiguredEditor, createModelReference } from "vscode/monaco"; // Monaco editor helpers from VSCode API
+import { ExtensionHostKind, registerExtension } from "vscode/extensions"; // Register extensions in VSCode API
+
+import { initServices, MonacoLanguageClient } from "monaco-languageclient"; // Monaco Language Client (LSP bridge)
 import {
   CloseAction,
   ErrorAction,
   MessageTransports,
-} from "vscode-languageclient";
+} from "vscode-languageclient"; // LSP message transport/error handling
+
 import {
   WebSocketMessageReader,
   WebSocketMessageWriter,
   toSocket,
-} from "vscode-ws-jsonrpc";
+} from "vscode-ws-jsonrpc"; // WebSocket RPC for LSP protocol
 
+// --- Monaco Editor Workers ---
+// Spin up the Monaco worker definitions so syntax features work in browser environments.
 import { buildWorkerDefinition } from "monaco-editor-workers";
 buildWorkerDefinition(
   "../../../node_modules/monaco-editor-workers/dist/workers/",
@@ -31,7 +40,7 @@ buildWorkerDefinition(
 //            HELPER FUNCTIONS
 // -----------------------------------------
 
-// Detect if running on Windows platform
+// Detect if running on Windows platform for file path normalization
 const isWindows = navigator.platform.indexOf("Win") > -1;
 
 /**
@@ -45,33 +54,31 @@ const getSafePath = (path: string): string => {
   return path;
 };
 
+// Track service initialization state for idempotency
 let servicesInitialized = false;
 
 /**
  * Initializes VSCode/Monaco backend services ONCE.
- * Enables languages, theming, configuration, file model services, etc.
+ * Enables languages, themes, config, file model services, keybindings, etc.
  *
  * @param workspaceUrl The URI string of the workspace to attach.
  */
 const initializeServicesOnce = async (workspaceUrl: string): Promise<void> => {
   if (servicesInitialized) {
+    // Prevent duplicate initialization
     return;
   }
-
   try {
     await initServices({
-      enableModelService: true,
-      enableThemeService: true,
-      enableTextmateService: true,
-      configureConfigurationService: {
-        defaultWorkspaceUri: workspaceUrl,
-      },
-      enableLanguagesService: true,
-      enableKeybindingsService: true,
+      enableModelService: true, // Enables Monaco text model service
+      enableThemeService: true, // Enables dynamic theme switching
+      enableTextmateService: true, // Textmate grammars for syntax coloring
+      configureConfigurationService: { defaultWorkspaceUri: workspaceUrl },
+      enableLanguagesService: true, // Language service for code intelligence
+      enableKeybindingsService: true, // Keyboard shortcut support
       debugLogging: false,
       logLevel: LogLevel.Info,
     });
-
     servicesInitialized = true;
   } catch (error) {
     throw error;
@@ -79,8 +86,8 @@ const initializeServicesOnce = async (workspaceUrl: string): Promise<void> => {
 };
 
 /**
- * Registers the Python extension compatibility (Pyright features).
- * Defines language id, file extensions, keyboard shortcuts, and commands.
+ * Registers Python language extension and associated commands & keybindings.
+ * Pyright features (restart server, organize imports, etc.) are mapped here.
  */
 const registerLanguageExtensions = (): void => {
   try {
@@ -133,25 +140,26 @@ const registerLanguageExtensions = (): void => {
 /**
  * MeridiaPy
  *
- * Provides an editor wrapper around Monaco + VSCode API,
- * integrated with Pyright Language Server for Python.
+ * Provides an editor wrapper around Monaco + VSCode API, integrated with Pyright LSP for Python.
+ * Handles all initialization, model creation, and language server client setup.
  */
 export class MeridiaPy {
-  private editor: monaco.editor.IStandaloneCodeEditor;
-  private languageClient: MonacoLanguageClient;
-  private models: Map<string, monaco.editor.ITextModel> = new Map();
+  public editor: monaco.editor.IStandaloneCodeEditor; // Monaco Editor instance
+  public languageClient: MonacoLanguageClient; // Python LSP client
+  public models: Map<string, monaco.editor.ITextModel> = new Map(); // File models
 
   constructor(
-    private readonly container: HTMLElement, // Parent DOM container for editor
-    private readonly workspaceUrl: string, // Workspace URI
-    private readonly port: number = 3000 // Language Server connection port
+    private readonly container: HTMLElement, // Parent DOM node for editor
+    private readonly workspaceUrl: string, // Workspace URI for context
+    private readonly port: number = 3000 // Pyright LSP websocket port
   ) {}
 
   /**
-   * Creates a WebSocket safely with timeout, error handling,
-   * and binding to Pyright language client transport.
+   * Opens a websocket to the Python Language Server (Pyright).
+   * Handles connection, errors, timeouts, and binding to language client.
    *
-   * @param url The WebSocket endpoint (usually Language Server endpoint).
+   * @param url The WebSocket endpoint (usually /pyright).
+   * @returns Promise that resolves when connection is established.
    */
   private createSafeWebSocket = (url: string): Promise<WebSocket> => {
     return new Promise((resolve, reject) => {
@@ -164,14 +172,14 @@ export class MeridiaPy {
             const reader = new WebSocketMessageReader(socket);
             const writer = new WebSocketMessageWriter(socket);
 
-            // Attach language client with LSP message transports
+            // Attach message transport to the language client
             this.languageClient = this.createLanguageClient({ reader, writer });
 
-            // Start language client (enables autocomplete, diagnostics, etc.)
+            // Start the LSP client for code intelligence, diagnostics, etc.
             await this.languageClient.start();
             reader.onClose(() => this.languageClient.stop());
 
-            // Register Pyright restart command in VSCode API
+            // Command registration for Pyright server actions via VSCode API
             vscode.commands.registerCommand(
               "pyright.restartserver",
               async (...args: unknown[]) => {
@@ -193,19 +201,19 @@ export class MeridiaPy {
           }
         };
 
-        // Handle socket failures
+        // Collect connection errors and surface to caller
         webSocket.onerror = (error) => {
           reject(new Error(`WebSocket connection failed: ${error}`));
         };
 
-        // Handle abnormal closure
+        // Handle abnormal closure (unexpected disconnects)
         webSocket.onclose = (event) => {
           if (event.code !== 1000) {
-            // handle unexpected disconnection
+            // Unexpected disconnect handler (could augment for UX/log)
           }
         };
 
-        // Timeout protection: connection must open within 10 seconds
+        // Timeout logic: fail if connection not ready within 10s
         setTimeout(() => {
           if (webSocket.readyState === WebSocket.CONNECTING) {
             webSocket.close();
@@ -219,10 +227,10 @@ export class MeridiaPy {
   };
 
   /**
-   * Create the Monaco Language Client instance for Pyright LSP.
+   * Constructs a Monaco language client for Pyright LSP.
    *
-   * @param transports The LSP message transport channels.
-   * @param workspaceUrl Workspace URI for context.
+   * @param transports LSP message transport channels.
+   * @returns MonacoLanguageClient instance configured for Python.
    */
   private createLanguageClient = (
     transports: MessageTransports
@@ -230,14 +238,11 @@ export class MeridiaPy {
     return new MonacoLanguageClient({
       name: "Pyright Language Client",
       clientOptions: {
-        // use a language id as a document selector
-        documentSelector: ["python"],
-        // disable the default error handler
+        documentSelector: ["python"], // File type to bind LSP
         errorHandler: {
           error: () => ({ action: ErrorAction.Continue }),
           closed: () => ({ action: CloseAction.DoNotRestart }),
         },
-        // pyright requires a workspace folder to be presen, otherwise it will not work
         workspaceFolder: {
           index: 0,
           name: this.workspaceUrl,
@@ -247,7 +252,6 @@ export class MeridiaPy {
           fileEvents: [vscode.workspace.createFileSystemWatcher("**")],
         },
       },
-      // create a language client connection from the JSON RPC connection on demand
       connectionProvider: {
         get: () => {
           return Promise.resolve(transports);
@@ -257,14 +261,17 @@ export class MeridiaPy {
   };
 
   /**
-   * Creates and initializes the Monaco editor with all services enabled.
-   * @returns An instance of Monaco standalone code editor.
+   * Creates and configures the Monaco editor instance in the supplied DOM node.
+   * Initializes all required services and registers Python language extensions.
+   *
+   * @returns Monaco standalone code editor instance
    */
   createEditor = async (): Promise<monaco.editor.IStandaloneCodeEditor> => {
     await initializeServicesOnce(this.workspaceUrl);
     registerLanguageExtensions();
     await this.createSafeWebSocket(`ws://localhost:${this.port}/pyright`);
 
+    // User configuration: set font size and default theme
     updateUserConfiguration(`{
         "editor.fontSize": 14,
         "workbench.colorTheme": "Default Dark Modern"
@@ -275,20 +282,22 @@ export class MeridiaPy {
   };
 
   /**
-   * Creates a Monaco model for given file (Python-aware).
+   * Creates a new Monaco model (opens file buffer) for Python in workspace.
    *
    * @param fileUri File path or URI.
-   * @param content Initial file content.
-   * @returns A text model attached to language services.
+   * @param content Initial contents for new model.
+   * @returns Monaco TextModel instance for editing and LSP features.
    */
   createModel = async (
     fileUri: string,
     content: string
   ): Promise<monaco.editor.ITextModel> => {
+    // Normalize file URI for Windows compatibility
     const normalizedUri = isWindows
       ? monaco.Uri.file(getSafePath(fileUri))
       : monaco.Uri.file(fileUri);
 
+    // Create Monaco model reference (buffer)
     const modelRef = await createModelReference(normalizedUri, content);
 
     if (!modelRef || !modelRef.object) {
@@ -306,22 +315,37 @@ export class MeridiaPy {
     return model;
   };
 
-  /** Get a stored Monaco model by its file URI */
+  /** Retrieve a Monaco model by its file URI. */
   getModel(fileUri: string) {
     return this.models.get(fileUri);
   }
 
-  /** Set an existing model active in the editor */
+  /** List all open models currently stored. */
+  getAllModels() {
+    return this.models;
+  }
+
+  /** Set an existing model as the active editor buffer. */
   setModel(model: monaco.editor.ITextModel) {
     this.editor.setModel(model);
   }
 
-  /** Switch to a model by fileUri from stored model map */
+  /** Switch editor to a model from fileUri. */
   setModelByUri(fileUri: string) {
     this.editor.setModel(this.models.get(fileUri)!);
   }
 
-  /** Dispose editor + models + services */
+  /** Remove and destroy a model from the store. */
+  removeModel(fileUri: string) {
+    this.models.delete(fileUri);
+  }
+
+  /** Clear all models from editor and store. */
+  clearModels() {
+    this.models.clear();
+  }
+
+  /** Dispose the Monaco editor, models, and registered services. */
   dispose() {
     this.resetServices();
     this.editor.dispose();
@@ -329,7 +353,8 @@ export class MeridiaPy {
   }
 
   /**
-   * Creates and switches editor to a new empty model for given fileUri.
+   * Create and switch to a NEW empty model for the given fileUri.
+   * Useful for creating new files or quick changes.
    */
   switchModel = async (fileUri: string): Promise<void> => {
     const model = await this.createModel(fileUri, "");
@@ -337,8 +362,8 @@ export class MeridiaPy {
   };
 
   /**
-   * Reset VSCode/Monaco services (useful for hot reload/testing).
-   * Stops the language client and allows reinitialization.
+   * Reset VSCode/Monaco services (useful for hot reload/development).
+   * Stops language client and allows full re-init.
    */
   resetServices = (): void => {
     servicesInitialized = false;
